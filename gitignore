@@ -1,0 +1,7 @@
+node_modules
+.wwebjs_auth
+downloads/*.mp4
+downloads/*.jpg
+downloads/*.png
+downloads/*.webp
+session*
