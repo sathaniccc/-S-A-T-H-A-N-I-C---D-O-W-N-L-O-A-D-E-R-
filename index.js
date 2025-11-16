@@ -1,8 +1,7 @@
-// -------------------- MODULES --------------------
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const QRCode = require("qrcode");
 const express = require("express");
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const QRCode = require("qrcode");
+const qrcodeTerminal = require('qrcode-terminal');
 const ytdl = require('ytdl-core');
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
@@ -12,28 +11,40 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-// -------------------- FOLDER --------------------
 if (!fs.existsSync('./downloads')) fs.mkdirSync('./downloads');
 
-// -------------------- WEB SERVER --------------------
 const app = express();
-let latestQR = null;
+let qrCodeData = null;
 
-app.get("/qr", async (req, res) => {
-    if (!latestQR) return res.send("QR not generated yet. Restart bot.");
-
-    QRCode.toBuffer(latestQR, (err, buffer) => {
-        if (err) return res.status(500).send("QR error");
-        res.set("Content-Type", "image/png");
-        res.send(buffer);
-    });
+// ---------------- WEB SERVER ----------------
+app.get("/", (req, res) => {
+  res.send("WhatsApp Bot Running. Go to /qr to scan.");
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("🌐 Web server running on port " + PORT));
+app.get("/qr", async (req, res) => {
+  if (!qrCodeData) {
+    return res.send("QR not generated yet. Wait 5 seconds.");
+  }
 
+  try {
+    const qrImage = await QRCode.toDataURL(qrCodeData);
+    res.send(`
+      <html>
+        <body>
+          <center>
+            <h2>📱 Scan QR to connect WhatsApp</h2>
+            <img src="${qrImage}" width="300"/>
+          </center>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    res.send("Error loading QR.");
+  }
+});
 
-// -------------------- WHATSAPP CLIENT --------------------
+// ---------------- WHATSAPP BOT ----------------
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -42,33 +53,26 @@ const client = new Client({
     }
 });
 
-// QR CODE DISPLAY (Terminal + Save for /qr)
+// QR on terminal + save for webpage
 client.on('qr', qr => {
-    latestQR = qr;
-
-    console.log("\n💠 SCAN THIS QR TO LOGIN (Browser): /qr");
-    console.log("💠 SCAN THIS QR (Terminal):\n");
-
-    qrcode.generate(qr, { small: true });
-
-    // Save image
-    QRCode.toFile("./qr.png", qr, { width: 400 });
+    qrCodeData = qr;
+    console.log("\n💠 SCAN THIS QR TO LOGIN WHATSAPP 💠\n");
+    qrcodeTerminal.generate(qr, { small: true });
 });
 
 // READY
 client.on('ready', () => {
-    console.log('📛 SATHANIC DOWNLOADER BOT READY 📛');
+    console.log('📛 SATHANIC DOWNLOADER BOT IS READY 📛');
 });
 
-
-// -------------------- PROGRESS BAR --------------------
+// Progress bar
 async function sendProgress(chat, text, percent) {
-    let bar = "▓".repeat(Math.round(percent / 10)) + "░".repeat(10 - Math.round(percent / 10));
+    let filled = Math.round(percent / 10);
+    let bar = "▓".repeat(filled) + "░".repeat(10 - filled);
     chat.sendMessage(`${text}\n[${bar}] ${percent.toFixed(0)}%`);
 }
 
-
-// -------------------- YOUTUBE DOWNLOAD --------------------
+// ---------------- YOUTUBE DOWNLOAD ----------------
 async function downloadYT(chat, url) {
     try {
         chat.sendMessage("📥 Starting YouTube Download...");
@@ -79,7 +83,8 @@ async function downloadYT(chat, url) {
 
         const stream = ytdl(url, { quality: "highestvideo" });
 
-        let total = 0, downloaded = 0;
+        let total = 0;
+        let downloaded = 0;
 
         stream.on("response", res => {
             total = parseInt(res.headers["content-length"]);
@@ -89,8 +94,7 @@ async function downloadYT(chat, url) {
             downloaded += chunk.length;
             if (total) {
                 let percent = (downloaded / total) * 100;
-                if (percent % 5 < 1)
-                    sendProgress(chat, "📥 Downloading YouTube", percent);
+                if (percent % 5 < 1) sendProgress(chat, "📥 Downloading YouTube", percent);
             }
         });
 
@@ -108,8 +112,7 @@ async function downloadYT(chat, url) {
     }
 }
 
-
-// -------------------- INSTAGRAM DOWNLOAD --------------------
+// ---------------- INSTAGRAM REEL ----------------
 async function downloadIG(chat, url) {
     try {
         chat.sendMessage("📥 Fetching Instagram Reel...");
@@ -120,14 +123,13 @@ async function downloadIG(chat, url) {
         let videoUrl = $('meta[property="og:video"]').attr("content");
 
         if (!videoUrl) {
-            chat.sendMessage("❌ Could not find reel (may be private).");
+            chat.sendMessage("❌ Could not find reel (maybe private).");
             return;
         }
 
         const output = `./downloads/ig_${Date.now()}.mp4`;
 
         const res = await fetch(videoUrl);
-
         let total = parseInt(res.headers.get("content-length"));
         let downloaded = 0;
 
@@ -152,23 +154,25 @@ async function downloadIG(chat, url) {
     }
 }
 
-
-// -------------------- COMMAND LISTENER --------------------
+// ---------------- COMMANDS ----------------
 client.on('message', async msg => {
     const chat = await msg.getChat();
     const text = msg.body.trim();
 
-    if (text.startsWith("!yt ")) downloadYT(chat, text.slice(4));
-    if (text.startsWith("!ig ")) downloadIG(chat, text.slice(4));
+    if (text.startsWith("!yt ")) {
+        downloadYT(chat, text.slice(4));
+    }
+
+    if (text.startsWith("!ig ")) {
+        downloadIG(chat, text.slice(4));
+    }
 
     if (text === "!help") {
-        chat.sendMessage(
-            "📛 SATHANIC DOWNLOADER 📛\nCommands:\n\n" +
-            "▶️ !yt <url>\n" +
-            "▶️ !ig <url>"
-        );
+        chat.sendMessage("📛 SATHANIC DOWNLOADER 📛\nCommands:\n!yt <url>\n!ig <url>");
     }
 });
 
-// -------------------- START BOT --------------------
 client.initialize();
+
+// START SERVER
+app.listen(3000, () => console.log("Server running on port 3000"));
