@@ -1,6 +1,5 @@
 FROM node:20
 
-# Install chromium + ffmpeg
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
