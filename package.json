@@ -1,0 +1,17 @@
+{
+  "name": "sathanic-downloader",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.24.0",
+    "qrcode-terminal": "^0.12.0",
+    "ytdl-core": "^4.11.2",
+    "node-fetch": "2.6.7",
+    "cheerio": "^1.0.0-rc.12",
+    "fluent-ffmpeg": "^2.1.2",
+    "ffmpeg-static": "^5.2.2"
+  }
+}
